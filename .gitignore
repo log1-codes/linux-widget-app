@@ -1,0 +1,4 @@
+.venv
+manager/__pycache__/*
+widgets/__pycache__/*
+__pycache__/*

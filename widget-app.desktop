@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Widget App
+Comment=Desktop widgets for developers (clock, tasks, weather, music, system, notes)
+Exec=widget-app
+Icon=utilities-system-monitor
+Terminal=false
+Type=Application
+Categories=Utility;
+StartupNotify=false
