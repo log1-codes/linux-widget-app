@@ -49,7 +49,7 @@ sudo zypper install python3-gobject python3-psutil python3-requests python3-dbus
 ### Option 1: Run from source (no install, any distro)
 
 ```bash
-git clone https://github.com/singhanurag/widget-app.git
+git clone https://github.com/log1-codes/linux-widget-app.git
 cd widget-app
 ./run.sh
 ```
@@ -149,7 +149,9 @@ Remove config data (optional):
 ```bash
 rm -rf ~/.config/widget-app
 ```
+## Made with 💖 by Anurag Singh
 
+[Check My Work Here ](https://www.anurag.engineer)
 ## License
 
 MIT
