@@ -1,22 +1,19 @@
 APPNAME = widget-app
-VERSION = 1.0.0
+VERSION = 1.1.0
 
-.PHONY: all clean tar rpm install uninstall
+.PHONY: all clean install uninstall
 
-all: rpm
+all: install
 
 clean:
-	rm -rf dist/
+	rm -rf dist/ rpmbuild/
 	rm -f $(APPNAME)-$(VERSION).tar.gz
-	rm -f widget-app.sh
 
-dist: clean widget-app.sh
+dist: clean
 	mkdir -p dist/$(APPNAME)-$(VERSION)/manager
 	mkdir -p dist/$(APPNAME)-$(VERSION)/widgets
-	cp main.py dist/$(APPNAME)-$(VERSION)/
-	cp widget-app.sh dist/$(APPNAME)-$(VERSION)/
-	cp widget-app.desktop dist/$(APPNAME)-$(VERSION)/
-	cp widget-app-autostart.desktop dist/$(APPNAME)-$(VERSION)/
+	cp main.py widget-app.sh widget-app.desktop widget-app-autostart.desktop \
+	   dist/$(APPNAME)-$(VERSION)/
 	cp manager/__init__.py manager/widget_manager.py dist/$(APPNAME)-$(VERSION)/manager/
 	cp widgets/__init__.py widgets/base_widget.py widgets/clock_widget.py \
 	   widgets/task_widget.py widgets/weather_widget.py widgets/music_widget.py \
@@ -25,18 +22,9 @@ dist: clean widget-app.sh
 tar: dist
 	cd dist && tar czf ../$(APPNAME)-$(VERSION).tar.gz $(APPNAME)-$(VERSION)
 
-rpm: tar
-	rpmbuild -tb $(APPNAME)-$(VERSION).tar.gz || \
-	rpmbuild -tb --define "_specdir $(PWD)" --define "_sourcedir $(PWD)" \
-	        --define "_builddir $(PWD)/rpmbuild" --define "_srcrpmdir $(PWD)" \
-	        --define "_rpmdir $(PWD)" $(APPNAME)-$(VERSION).tar.gz
-
-widget-app.sh:
-	printf '#!/bin/sh\nif [ "$$XDG_SESSION_TYPE" = "wayland" ] && [ -z "$$GDK_BACKEND" ]; then\n\texport GDK_BACKEND=x11\nfi\nexec /usr/bin/python3 /usr/share/widget-app/main.py "$$@"\n' > widget-app.sh
-	chmod 0755 widget-app.sh
-
-install: widget-app.sh
-	sudo dnf install -y python3-psutil python3-requests python3-dbus python3-gobject gtk3
+install:
+	sudo dnf install -y python3-psutil python3-requests python3-dbus python3-gobject \
+	     gtk3 python3-cairo
 	sudo mkdir -p /usr/share/widget-app/manager /usr/share/widget-app/widgets
 	sudo cp main.py /usr/share/widget-app/
 	sudo cp manager/__init__.py manager/widget_manager.py /usr/share/widget-app/manager/
@@ -44,14 +32,17 @@ install: widget-app.sh
 	     widgets/task_widget.py widgets/weather_widget.py widgets/music_widget.py \
 	     widgets/system_widget.py widgets/note_widget.py /usr/share/widget-app/widgets/
 	sudo cp widget-app.sh /usr/bin/widget-app
+	sudo chmod 0755 /usr/bin/widget-app
 	sudo mkdir -p /usr/share/applications
 	sudo cp widget-app.desktop /usr/share/applications/
 	sudo mkdir -p /etc/xdg/autostart
 	sudo cp widget-app-autostart.desktop /etc/xdg/autostart/widget-app.desktop
 	@echo ""
-	@echo "Installed. Run 'widget-app' to start. Widgets will auto-start on login."
+	@echo "✓ Installed. Run 'widget-app' to start."
 
 uninstall:
 	sudo rm -rf /usr/share/widget-app
 	sudo rm -f /usr/bin/widget-app
+	sudo rm -f /usr/share/applications/widget-app.desktop
+	sudo rm -f /etc/xdg/autostart/widget-app.desktop
 	@echo "Uninstalled."

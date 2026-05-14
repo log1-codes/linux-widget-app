@@ -1,4 +1,5 @@
 .venv
 manager/__pycache__/*
 widgets/__pycache__/*
+tauri-widgets
 __pycache__/*

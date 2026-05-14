@@ -1,3 +1,14 @@
+"""
+BaseWidget – shared foundation for all desktop widgets.
+
+Key Wayland/XWayland notes:
+  • We run under GDK_BACKEND=x11 (XWayland) so Gdk.WindowTypeHint.DOCK
+    works AND keyboard input is delivered.
+  • NORMAL type-hint is used so GNOME/Mutter still passes key events
+    to the window even without explicit focus grabs.
+  • Colors use a macOS-inspired frosted-glass palette that is readable
+    on any wallpaper: semi-transparent dark background + vivid accent text.
+"""
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk, GLib, GdkPixbuf
@@ -10,6 +21,75 @@ CONFIG_DIR = os.path.expanduser('~/.config/widget-app')
 os.makedirs(CONFIG_DIR, exist_ok=True)
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'widgets.json')
 CORNER_RADIUS = 20
+
+# ── macOS-inspired colour palette (works on light AND dark wallpapers) ────────
+# Background: rich dark navy at ~78% opacity — enough contrast on any wallpaper
+# Text:       pure white at various opacities — always legible over dark bg
+# Accent:     Apple "Blue" #0A84FF / translucent tint for highlights
+PALETTE_CSS = """
+    .widget-outer {
+        background-color: rgba(20, 20, 30, 0.82);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    .title-bar {
+        background-color: rgba(255, 255, 255, 0.055);
+        border-radius: 20px 20px 0 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .title-bar:hover {
+        background-color: rgba(255, 255, 255, 0.10);
+    }
+    .title-label {
+        color: rgba(255, 255, 255, 0.90);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .close-btn {
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 15px;
+        font-weight: 300;
+        background: transparent;
+        border: none;
+        padding: 0;
+        min-width: 24px;
+        min-height: 24px;
+    }
+    .close-btn:hover {
+        color: #ff453a;
+        background-color: rgba(255, 69, 58, 0.18);
+        border-radius: 50%;
+    }
+    .widget-content {
+        background: transparent;
+    }
+    /* ── Generic text helpers used across widgets ── */
+    .text-primary {
+        color: rgba(255, 255, 255, 0.92);
+    }
+    .text-secondary {
+        color: rgba(255, 255, 255, 0.52);
+    }
+    .text-muted {
+        color: rgba(255, 255, 255, 0.30);
+    }
+    .accent-blue {
+        color: #64b5f6;
+    }
+    .accent-green {
+        color: #30d158;
+    }
+    .accent-red {
+        color: #ff453a;
+    }
+    .inset-card {
+        background-color: rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+"""
+
 
 class BaseWidget(Gtk.Window):
     instances = []
@@ -37,7 +117,10 @@ class BaseWidget(Gtk.Window):
         self.set_app_paintable(True)
         self.set_resizable(True)
         self.stick()
-        self.set_type_hint(Gdk.WindowTypeHint.DOCK)
+
+        # NORMAL hint keeps keyboard input working under XWayland on GNOME.
+        # DOCK disables keyboard focus in Wayland security model.
+        self.set_type_hint(Gdk.WindowTypeHint.NORMAL)
 
         screen = self.get_screen()
         visual = screen.get_rgba_visual()
@@ -45,7 +128,6 @@ class BaseWidget(Gtk.Window):
             self.set_visual(visual)
 
         self.set_position(Gtk.WindowPosition.NONE)
-
         self._build_title_bar(title)
 
         self.connect('realize', self._on_realize)
@@ -62,6 +144,8 @@ class BaseWidget(Gtk.Window):
         )
 
         BaseWidget.instances.append(self)
+
+    # ── Window shape ──────────────────────────────────────────────────────────
 
     def _on_realize(self, widget):
         self._shape_window()
@@ -87,6 +171,8 @@ class BaseWidget(Gtk.Window):
         self.get_window().shape_combine_region(region, 0, 0)
         self.get_window().input_shape_combine_region(region, 0, 0)
 
+    # ── Title bar & layout ────────────────────────────────────────────────────
+
     def _build_title_bar(self, title):
         self.outer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.outer_box.get_style_context().add_class('widget-outer')
@@ -94,18 +180,18 @@ class BaseWidget(Gtk.Window):
 
         self.title_bar = Gtk.EventBox()
         self.title_bar.get_style_context().add_class('title-bar')
-        self.title_bar.set_size_request(-1, 32)
+        self.title_bar.set_size_request(-1, 34)
         self.title_bar.connect('button-press-event', self._on_title_press)
         self.title_bar.connect('button-release-event', self._on_title_release)
         self.title_bar.connect('motion-notify-event', self._on_title_motion)
 
         title_hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        title_hbox.set_margin_start(8)
-        title_hbox.set_margin_end(4)
-        title_hbox.set_margin_top(4)
-        title_hbox.set_margin_bottom(4)
+        title_hbox.set_margin_start(10)
+        title_hbox.set_margin_end(6)
+        title_hbox.set_margin_top(5)
+        title_hbox.set_margin_bottom(5)
 
-        self.title_label = Gtk.Label(label=title)
+        self.title_label = Gtk.Label(label=title.upper())
         self.title_label.set_xalign(0.0)
         self.title_label.get_style_context().add_class('title-label')
 
@@ -129,61 +215,23 @@ class BaseWidget(Gtk.Window):
 
         self._apply_css()
 
-    def _build_content(self):
-        pass
-
     def _apply_css(self):
         css_provider = Gtk.CssProvider()
-        css = """
-            .widget-outer {
-                background-color: rgba(22, 22, 32, 0.55);
-                border-radius: 20px;
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-            }
-            .title-bar {
-                background-color: rgba(255, 255, 255, 0.04);
-                border-radius: 20px 20px 0 0;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            }
-            .title-bar:hover {
-                background-color: rgba(255, 255, 255, 0.07);
-            }
-            .title-label {
-                color: rgba(255, 255, 255, 0.85);
-                font-size: 10px;
-                font-weight: 600;
-            }
-            .close-btn {
-                color: rgba(255, 255, 255, 0.35);
-                font-size: 16px;
-                font-weight: 300;
-                background: transparent;
-                border: none;
-                padding: 0;
-                min-width: 24px;
-                min-height: 24px;
-            }
-            .close-btn:hover {
-                color: rgba(255, 255, 255, 0.9);
-                background-color: rgba(255, 255, 255, 0.1);
-                border-radius: 20px;
-            }
-            .widget-content {
-                background: transparent;
-            }
-        """
-        css_provider.load_from_data(css.encode())
+        css_provider.load_from_data(PALETTE_CSS.encode())
         Gtk.StyleContext.add_provider_for_screen(
             self.get_screen(), css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+
+    # ── Drawing ───────────────────────────────────────────────────────────────
 
     def _on_draw_bg(self, widget, cr):
         cr.set_source_rgba(0, 0, 0, 0)
         cr.set_operator(cairo.OPERATOR_SOURCE)
         cr.paint()
         return False
+
+    # ── Drag (title bar) ──────────────────────────────────────────────────────
 
     def _on_title_press(self, widget, event):
         if event.button == 1:
@@ -198,6 +246,7 @@ class BaseWidget(Gtk.Window):
     def _on_title_release(self, widget, event):
         self._drag_start_x = 0
         self._drag_start_y = 0
+        self.save_position()
 
     def _on_title_motion(self, widget, event):
         if self._drag_start_x != 0 and self._drag_start_y != 0:
@@ -206,6 +255,8 @@ class BaseWidget(Gtk.Window):
             self.move(new_x, new_y)
             return True
         return False
+
+    # ── Resize + whole-window drag ────────────────────────────────────────────
 
     def _on_button_press(self, widget, event):
         if event.button == 1:
@@ -219,20 +270,12 @@ class BaseWidget(Gtk.Window):
                 self._resize_start_w = alloc.width
                 self._resize_start_h = alloc.height
                 return True
-            self._drag_start_x = event.x_root
-            self._drag_start_y = event.y_root
-            x, y = self.get_position()
-            self._drag_offset_x = int(event.x_root - x)
-            self._drag_offset_y = int(event.y_root - y)
-            return True
         return False
 
     def _on_button_release(self, widget, event):
         if event.button == 1:
             self._resizing = False
             self._resize_edge = None
-            self._drag_start_x = 0
-            self._drag_start_y = 0
             self.save_position()
             return True
         return False
@@ -241,8 +284,7 @@ class BaseWidget(Gtk.Window):
         alloc = self.get_allocation()
         edge = self._get_resize_edge(event.x, event.y, alloc)
         if edge:
-            cursor = Gdk.CursorType.BOTTOM_RIGHT_CORNER if edge in ('se', 'nw') else Gdk.CursorType.BOTTOM_LEFT_CORNER
-            self.get_window().set_cursor(Gdk.Cursor(cursor))
+            self.get_window().set_cursor(Gdk.Cursor(Gdk.CursorType.BOTTOM_RIGHT_CORNER))
         elif not self._resizing:
             self.get_window().set_cursor(Gdk.Cursor(Gdk.CursorType.LEFT_PTR))
 
@@ -254,21 +296,15 @@ class BaseWidget(Gtk.Window):
             self.resize(new_w, new_h)
             self._shape_window()
             return True
-
-        if self._drag_start_x != 0 and self._drag_start_y != 0:
-            new_x = int(event.x_root - self._drag_offset_x)
-            new_y = int(event.y_root - self._drag_offset_y)
-            self.move(new_x, new_y)
-            return True
         return False
 
     def _get_resize_edge(self, x, y, alloc):
-        margin = 12
-        right = x >= alloc.width - margin
-        bottom = y >= alloc.height - margin
-        if right and bottom:
+        margin = 14
+        if x >= alloc.width - margin and y >= alloc.height - margin:
             return 'se'
         return None
+
+    # ── Close / Key ───────────────────────────────────────────────────────────
 
     def _on_close(self, btn):
         self.close()
@@ -288,6 +324,8 @@ class BaseWidget(Gtk.Window):
             return True
         return False
 
+    # ── Position persistence ──────────────────────────────────────────────────
+
     def save_position(self):
         x, y = self.get_position()
         w, h = self.get_size()
@@ -296,7 +334,7 @@ class BaseWidget(Gtk.Window):
             with open(CONFIG_FILE) as f:
                 try:
                     data = json.load(f)
-                except:
+                except Exception:
                     data = {}
         data[self.widget_id] = {'x': x, 'y': y, 'w': w, 'h': h}
         with open(CONFIG_FILE, 'w') as f:
@@ -316,5 +354,10 @@ class BaseWidget(Gtk.Window):
                         if 'w' in pos and 'h' in pos:
                             self.resize(max(150, pos['w']), max(150, pos['h']))
                             self._shape_window()
-                except:
+                except Exception:
                     pass
+
+    # ── Subclass hook ─────────────────────────────────────────────────────────
+
+    def refresh(self):
+        pass
